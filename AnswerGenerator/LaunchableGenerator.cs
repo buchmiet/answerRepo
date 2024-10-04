@@ -147,7 +147,8 @@ namespace AnswerGenerator
         {
             // Find all constructors
             var constructors = classSymbol.Constructors
-                .Where(c => c.DeclaredAccessibility == Accessibility.Public || c.DeclaredAccessibility == Accessibility.Protected || c.DeclaredAccessibility == Accessibility.Internal)
+                .Where(c => !c.IsImplicitlyDeclared &&
+                            c.DeclaredAccessibility is Accessibility.Public or Accessibility.Protected or Accessibility.Internal)
                 .ToList();
 
             // Find IAnswerService field or property in the class
@@ -173,12 +174,20 @@ namespace AnswerGenerator
             }
 
             // For each constructor that does not have IAnswerService parameter, generate an overload
-            foreach (var constructor in constructors)
+            if (constructors.Count == 0)
             {
-                bool constructorHasAnswerService = constructor.Parameters.Any(p => p.Type.ToDisplayString() == "IAnswerService");
-                if (!constructorHasAnswerService)
+                // No constructors declared, generate the constructor
+                GenerateConstructorOverload(context, classSymbol, null, answerServiceMemberName);
+            }
+            else
+            {
+                foreach (var constructor in constructors)
                 {
-                    GenerateConstructorOverload(context, classSymbol, constructor, answerServiceMemberName);
+                    bool constructorHasAnswerService = constructor.Parameters.Any(p => p.Type.ToDisplayString() == "IAnswerService");
+                    if (!constructorHasAnswerService)
+                    {
+                        GenerateConstructorOverload(context, classSymbol, constructor, answerServiceMemberName);
+                    }
                 }
             }
 
@@ -270,15 +279,16 @@ public partial class {className}
             var source = namespaceName is null
                 ? classBody
                 : $@"
-    namespace {namespaceName}
-    {{
-        {classBody}
-    }}";
+namespace {namespaceName}
+{{
+    {classBody}
+}}";
 
             // Ensure unique filenames for each constructor overload
             var constructorSignatureHash = constructor?.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat).GetHashCode() ?? 0;
             context.AddSource($"{className}_ConstructorOverload_{constructorSignatureHash}.g.cs", SourceText.From(source, Encoding.UTF8));
         }
+
 
 
 
