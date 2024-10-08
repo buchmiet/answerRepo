@@ -50,7 +50,7 @@ namespace AnswerGenerator
 #if DEBUG
             if (!Debugger.IsAttached)
             {
-             Debugger.Launch();
+           //  Debugger.Launch();
             }
 #endif 
 
@@ -142,10 +142,13 @@ namespace AnswerGenerator
         private void ProcessClass(SourceProductionContext context, INamedTypeSymbol classSymbol, MethodDeclarationSyntax tryAsyncMethodSyntax, MethodDeclarationSyntax launchMethodSyntax)
         {
             // Find all constructors
+            // Find all constructors
             var constructors = classSymbol.Constructors
                 .Where(c => !c.IsImplicitlyDeclared &&
-                            c.DeclaredAccessibility is Accessibility.Public or Accessibility.Protected or Accessibility.Internal)
+                            c.DeclaredAccessibility is Accessibility.Public or Accessibility.Protected or Accessibility.Internal &&
+                            !c.Parameters.Any(p => p.Type.ToDisplayString() == "Trier4.IAnswerService" || p.Type.ToDisplayString() == "IAnswerService"))
                 .ToList();
+
 
 
             var membersDetails = new StringBuilder();
