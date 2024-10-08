@@ -50,7 +50,7 @@ namespace AnswerGenerator
 #if DEBUG
             if (!Debugger.IsAttached)
             {
-           //  Debugger.Launch();
+            Debugger.Launch();
             }
 #endif 
 
@@ -142,13 +142,10 @@ namespace AnswerGenerator
         private void ProcessClass(SourceProductionContext context, INamedTypeSymbol classSymbol, MethodDeclarationSyntax tryAsyncMethodSyntax, MethodDeclarationSyntax launchMethodSyntax)
         {
             // Find all constructors
-            // Find all constructors
             var constructors = classSymbol.Constructors
                 .Where(c => !c.IsImplicitlyDeclared &&
-                            c.DeclaredAccessibility is Accessibility.Public or Accessibility.Protected or Accessibility.Internal &&
-                            !c.Parameters.Any(p => p.Type.ToDisplayString() == "Trier4.IAnswerService" || p.Type.ToDisplayString() == "IAnswerService"))
+                            c.DeclaredAccessibility is Accessibility.Public or Accessibility.Protected or Accessibility.Internal)
                 .ToList();
-
 
 
             var membersDetails = new StringBuilder();
@@ -218,7 +215,7 @@ namespace AnswerGenerator
             {
                 foreach (var constructor in constructors)
                 {
-                    bool constructorHasAnswerService = constructor.Parameters.Any(p => p.Type.ToDisplayString() == "IAnswerService");
+                    bool constructorHasAnswerService = constructor.Parameters.Any(p => p.Type.ToDisplayString().EndsWith("IAnswerService"));
                     if (!constructorHasAnswerService)
                     {
                         GenerateConstructorOverload(context, classSymbol, constructor, answerServiceMemberName);

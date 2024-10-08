@@ -51,10 +51,10 @@ public partial class TescikRaz
 
 public partial class TescikRaz
 {
-    public TescikRaz(Trier4.IAnswerService answerService)
-    {
-        _answerService = answerService;
-    }
+    //public TescikRaz(Trier4.IAnswerService answerService)
+    //{
+    //    _answerService = answerService;
+    //}
 }
 //public partial class TescikDwa : ILaunchable
 //{
