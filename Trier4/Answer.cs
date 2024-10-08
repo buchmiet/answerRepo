@@ -32,11 +32,9 @@ public class Answer
             value = t;
             return IsSuccess;
         }
-        else
-        {
-            value = default;
-            return false;
-        }
+
+        value = default;
+        return false;
     }
 
     public T GetValue<T>()
@@ -45,10 +43,8 @@ public class Answer
         {
             return t;
         }
-        else
-        {
-            throw new InvalidOperationException($"Expected type {typeof(T)}, but _value is of type {_value?.GetType()}.");
-        }
+
+        throw new InvalidOperationException($"Expected type {typeof(T)}, but _value is of type {_value?.GetType()}.");
     }
 
     public Answer Attach(Answer answer)

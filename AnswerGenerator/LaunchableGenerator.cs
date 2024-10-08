@@ -33,11 +33,7 @@ namespace AnswerGenerator
                 transform: (n, _) => (ClassDeclarationSyntax)n.Node
             ).Where(m => m is not null);
 
-            //context.RegisterSourceOutput(context.CompilationProvider.Combine(provider.Collect()), (context, compilation) =>
-            //            {
-            //                var testSource = @"
-            //namespace TestNamespace { public class TestClass { public void TestMethod() { } } "; context.AddSource("TestFile.g.cs", SourceText.From(testSource, Encoding.UTF8));
-            //            });
+
 
 
             var compilation = context.CompilationProvider.Combine(provider.Collect());
@@ -60,7 +56,7 @@ namespace AnswerGenerator
 
             var iLaunchableSymbol = compilation.GetTypeByMetadataName("Trier4.ILaunchable");
             var assembly = Assembly.GetExecutingAssembly();
-            var resourceName = "AnswerGenerator.LaunchableHelper.cs"; // Adjust the namespace and file name as necessary
+            var resourceName = "AnswerGenerator.LaunchableHelper.cs"; 
 
             using var stream = assembly.GetManifestResourceStream(resourceName);
             if (stream == null)
@@ -137,7 +133,7 @@ namespace AnswerGenerator
 
                 // Przetwarzanie klasy
             
-                ProcessClass(context, classSymbol, null, null);//tryAsyncMethodSyntax, launchMethodSyntax);
+                ProcessClass(context, classSymbol, tryAsyncMethodSyntax, launchMethodSyntax);
 
                 Debug.WriteLine($"Finished processing class {classSymbol.Name}.");
             }
@@ -151,13 +147,49 @@ namespace AnswerGenerator
                             c.DeclaredAccessibility is Accessibility.Public or Accessibility.Protected or Accessibility.Internal)
                 .ToList();
 
+
+            var membersDetails = new StringBuilder();
+
+            // Iterate over all members of the class symbol
+            foreach (var member in classSymbol.GetMembers())
+            {
+                membersDetails.AppendLine($"Member Name: {member.Name}");
+                membersDetails.AppendLine($"Member Kind: {member.Kind}");
+                membersDetails.AppendLine($"Is Static: {member.IsStatic}");
+
+                // Handle properties and fields differently
+                if (member is IFieldSymbol field)
+                {
+                    membersDetails.AppendLine($"Field Type: {field.Type.ToDisplayString()}");
+                }
+                else if (member is IPropertySymbol prop)
+                {
+                    membersDetails.AppendLine($"Property Type: {prop.Type.ToDisplayString()}");
+                }
+
+                // Display any additional attributes or modifiers
+                if (member is ISymbol symbol)
+                {
+                    membersDetails.AppendLine($"Declared Accessibility: {symbol.DeclaredAccessibility}");
+                }
+
+                membersDetails.AppendLine(); // Add a blank line between members
+            }
+
+            var debugOutput = membersDetails.ToString();
+
             // Find IAnswerService field or property in the class
+            // Find IAnswerService field or property in the class
+            // Find IAnswerService property in the class, ignoring backing fields
             var answerServiceMembers = classSymbol.GetMembers()
                 .Where(m =>
                     !m.IsStatic &&
-                    ((m is IFieldSymbol field && field.Type.ToDisplayString() == "IAnswerService") ||
-                     (m is IPropertySymbol prop && prop.Type.ToDisplayString() == "IAnswerService")))
+                    m is IPropertySymbol prop &&
+                    prop.Type.ToDisplayString() == "Trier4.IAnswerService" &&
+                    !prop.Name.Contains("k__BackingField"))
                 .ToList();
+
+
 
             string answerServiceMemberName = "_answerService"; // Default name
 
@@ -191,8 +223,8 @@ namespace AnswerGenerator
                 }
             }
 
-            //// Generate helper methods with the appropriate field/property name
-            //GenerateHelperMethods(context, classSymbol, tryAsyncMethodSyntax, launchMethodSyntax, answerServiceMemberName);
+            // Generate helper methods with the appropriate field/property name
+            GenerateHelperMethods(context, classSymbol, tryAsyncMethodSyntax, launchMethodSyntax, answerServiceMemberName);
         }
 
         private void GenerateAnswerServiceMember(SourceProductionContext context, INamedTypeSymbol classSymbol, string propertyName)
@@ -244,7 +276,7 @@ namespace AnswerGenerator
                 classBody = $@"
 public partial class {className}
 {{
-    public {className}(Trier4.IAnswerService answerService)
+    public {className}(Trier4.IAnswerService  answerService)
     {{
         {answerServiceMemberName} = answerService;
     }}
@@ -295,7 +327,9 @@ namespace {namespaceName}
 
         private void GenerateHelperMethods(SourceProductionContext context, INamedTypeSymbol classSymbol, MethodDeclarationSyntax tryAsyncSyntax, MethodDeclarationSyntax launchSyntax, string answerServiceFieldName)
         {
-            var namespaceName = classSymbol.ContainingNamespace.ToDisplayString();
+            var namespaceName = classSymbol.ContainingNamespace.IsGlobalNamespace
+                ? null
+                : classSymbol.ContainingNamespace.ToDisplayString();
             var className = classSymbol.Name;
 
 
@@ -305,26 +339,37 @@ namespace {namespaceName}
             var launchBody = launchSyntax.Body.ToFullString();
 
             // Zamiana nazwy pola IAnswerService
-            tryAsyncBody = ReplaceAnswerServiceName(tryAsyncBody, "answerService", answerServiceFieldName);
-            launchBody = ReplaceAnswerServiceName(launchBody, "answerService", answerServiceFieldName);
+            tryAsyncBody = ReplaceAnswerServiceName(tryAsyncBody, "_answerService", answerServiceFieldName);
+            launchBody = ReplaceAnswerServiceName(launchBody, "_answerService", answerServiceFieldName);
 
             // Generowanie kodu metod
-            var source = $@"
-        namespace {namespaceName}
-        {{
-            public partial class {className}
-            {{
-                public async Task<Trier4.Answer> TryAsync(Func<CancellationToken, Task<Trier4.Answer>> method, CancellationToken ct)
+            var classBody = $$"""
+                              
+                                      
+                                          public partial class {{className}}
+                                          {
+                                              public async Task<Trier4.Answer> TryAsync(Func<CancellationToken, Task<Trier4.Answer>> method, CancellationToken ct)
+                              
+                                                  {{tryAsyncBody}}
+                              
+                              
+                                              public async Task<Trier4.Answer> Launch(Func<CancellationToken, Task<Trier4.Answer>> method, CancellationToken ct)
+                              
+                                                  {{launchBody}}
+                              
+                                          }
+                                      
+                              """;
+            var source = namespaceName is null
+                ? classBody
+                : $$"""
 
-                    {tryAsyncBody}
+                    namespace {{namespaceName}}
+                    {
+                        {{classBody}}
+                    }
+                    """;
 
-
-                public async Task<Trier4.Answer> Launch(Func<CancellationToken, Task<Trier4.Answer>> method, CancellationToken ct)
-
-                    {launchBody}
-
-            }}
-        }}";
             context.AddSource($"{className}_HelperMethods.g.cs", SourceText.From(source, Encoding.UTF8));
         }
 
