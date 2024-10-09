@@ -19,37 +19,43 @@ namespace AnswerGenerator
             Console.WriteLine($"[{GetType().Name}] Launching method...");
             var operationTask = method(ct);
 
-            Task completedTask;
-            if (!_answerService.HasTimeout)
+            try
             {
-                return await operationTask;
+                if (_answerService.HasTimeout)
+                {
+                    // Use WaitAsync to add a timeout to the task
+                    return await operationTask.WaitAsync(_answerService.Timeout, ct);
+                }
+                else
+                {
+                    // If there is no timeout, just await the operation
+                    return await operationTask;
+                }
             }
-            else
+            catch (TimeoutException)
             {
-                var timeoutTask = Task.Delay(_answerService.Timeout, ct);
-                completedTask = await Task.WhenAny(operationTask, timeoutTask);
+                Console.WriteLine($"[{GetType().Name}] Operation timed out.");
+
+                // Ask the user whether to cancel or continue
+                if (await _answerService.AskAsync("Operation is taking longer than expected. Do you want to continue waiting?", ct))
+                {
+                    Console.WriteLine($"[{GetType().Name}] User chose to continue waiting.");
+                    // Wait for the operation to complete without timeout
+                    return await operationTask;
+                }
+
+                Console.WriteLine($"[{GetType().Name}] User chose to cancel the operation.");
+                // Return a timed-out Answer
+                return Trier4.Answer.Prepare("Operation canceled by user").TimedOut();
             }
-
-
-            if (completedTask == operationTask)
+            catch (TaskCanceledException)
             {
-                Console.WriteLine($"[{GetType().Name}] Operation completed before timeout.");
-                return await operationTask;
+                Console.WriteLine($"[{GetType().Name}] Operation was canceled.");
+                // Return a canceled Answer
+                return Trier4.Answer.Prepare("Operation was canceled").TimedOut();
             }
-
-            Console.WriteLine($"[{GetType().Name}] Operation timed out.");
-            // Ask the user whether to cancel or continue
-            if (await _answerService.AskAsync("Operation is taking longer than expected. Do you want to continue waiting?", ct))
-            {
-                Console.WriteLine($"[{GetType().Name}] User chose to continue waiting.");
-                // Wait for the operation to complete without timeout
-                return await operationTask;
-            }
-
-            Console.WriteLine($"[{GetType().Name}] User chose to cancel the operation.");
-            // Return a timed-out Answer
-            return Trier4.Answer.Prepare("Operation canceled by user").TimedOut();
         }
+
     }
 
 }
