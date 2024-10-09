@@ -4,6 +4,7 @@ public interface IAnswerService
 {
     bool HasDialog { get; }
     TimeSpan Timeout { get; }
+    bool HasTimeout { get; }
 
     Task<bool> AskAsync(string message, CancellationToken ct);
     void SetTimeout(TimeSpan timeout);
@@ -12,19 +13,26 @@ public interface IAnswerService
 public class AnswerService : IAnswerService
 {
     private readonly IUserDialog _dialog;
-    public bool HasDialog { get; private set; }
-    public TimeSpan Timeout { get; private set; } = TimeSpan.FromSeconds(5);
+    public bool HasDialog => _dialog != null;
+    public bool HasTimeout => Timeout != TimeSpan.Zero;
+    public TimeSpan Timeout { get; private set; } 
 
     public AnswerService(IUserDialog dialog)
     {
         _dialog = dialog;
-        HasDialog = dialog != null;
     }
+
+    public AnswerService()
+    {
+    }
+
 
     public void SetTimeout(TimeSpan timeout)
     {
         Timeout = timeout;
     }
+
+    
 
     public async Task<bool> AskAsync(string message, CancellationToken ct)
     {
