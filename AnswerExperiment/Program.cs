@@ -4,10 +4,13 @@ using System.Reflection;
 using Trier4;
 
 Console.WriteLine("Hello, World!");
-var tescik = new TescikRaz(new AnswerService(null));
+var answerService = new AnswerService(null);
+var tescik = new TescikRaz(answerService);
+var tescik2 = new TescikDwa(tescik,answerService);
+Console.WriteLine(await tescik2.SpytajTescikRazOProdukt(0));
 //var answerService = tescik.returnIt();
 
-Type type = tescik.GetType();
+Type type = tescik2.GetType();
 
 // Wypisujemy wszystkie pola
 Console.WriteLine("Fields:");
@@ -21,6 +24,12 @@ Console.WriteLine("Properties:");
 foreach (var property in type.GetProperties(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public))
 {
     Console.WriteLine(property.Name);
+}
+
+Console.WriteLine("Methods:");
+foreach (var method in type.GetMethods(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public))
+{
+    Console.WriteLine(method.Name);
 }
 
 //public partial class Tescik
@@ -44,18 +53,31 @@ public partial class TescikRaz : ILaunchable
     }
 }
 
-public partial class TescikRaz
+public partial class TescikDwa : ILaunchable
 {
-    public IAnswerService _answerService { get; private set; }
+    private TescikRaz tescikraz;
+
+    public TescikDwa(TescikRaz tescikraz)
+    {
+        this.tescikraz = tescikraz;
+    }
+
+    public async Task<Answer> SpytajTescikRazOProdukt(int id)
+    {
+
+        var response = Answer.Prepare($"pytam tescikraz o {id}");
+
+        var resp = await TryAsync((token) => tescikraz.SpytajBazeDanychOProdukt(0), new CancellationToken());
+
+        //);
+        return resp;
+
+    }
 }
 
-public partial class TescikRaz
-{
-    //public TescikRaz(Trier4.IAnswerService answerService)
-    //{
-    //    _answerService = answerService;
-    //}
-}
+
+
+
 //public partial class TescikDwa : ILaunchable
 //{
 //    public async Task<Answer> SpytajTescikOneOProdukt(int id)
