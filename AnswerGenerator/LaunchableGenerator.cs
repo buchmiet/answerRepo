@@ -44,7 +44,7 @@ namespace AnswerGenerator
 
 
         private readonly HashSet<string> _processedClasses = [];
-        private List<string> _helperMethods = new List<string>();
+        private List<string> _helperMethods = new();
         public void Execute(SourceProductionContext context, Compilation compilation, ImmutableArray<ClassDeclarationSyntax> typeList)
         {
 #if DEBUG
@@ -55,50 +55,7 @@ namespace AnswerGenerator
 #endif 
 
             var iLaunchableSymbol = compilation.GetTypeByMetadataName("Trier4.ILaunchable");
-            var assembly = Assembly.GetExecutingAssembly();
-            var resourceName = "AnswerGenerator.LaunchableHelper.cs"; 
-
-            using var stream = assembly.GetManifestResourceStream(resourceName);
-            if (stream == null)
-            {
-                // Handle the error: resource not found
-                return;
-            }
-
-            using var reader = new StreamReader(stream);
-            var sourceCode = reader.ReadToEnd();
-
-            // Parse the source code
-            var syntaxTree = CSharpSyntaxTree.ParseText(sourceCode);
-            var root = syntaxTree.GetRoot();
-
-            // Find the class declaration for LaunchableHelper+
-            var launchableHelperClass = root.DescendantNodes()
-                .OfType<ClassDeclarationSyntax>()
-                .FirstOrDefault(c => c.Identifier.Text == "LaunchableHelper");
-
-            if (launchableHelperClass == null)
-            {
-                // Handle the error: class not found
-                return;
-            }
-
-            var tryAsyncSyntax = launchableHelperClass.Members
-                .OfType<MethodDeclarationSyntax>()
-                .FirstOrDefault(m => m.Identifier.Text == "TryAsync");
-
-            var tryAsyncDeclaration = tryAsyncSyntax.ToFullString();
-
-            var launchMethodSyntax = launchableHelperClass.Members
-                .OfType<MethodDeclarationSyntax>()
-                .FirstOrDefault(m => m.Identifier.Text == "Launch");
-            var launchAsyncDeclaration = launchMethodSyntax.ToFullString();
-
-            if (tryAsyncDeclaration == null || launchAsyncDeclaration == null)
-            {
-                // Handle the error: methods not found
-                return;
-            }
+            PrepareHelperMethods();
 
             //// Iteracja przez wszystkie kandydackie klasy
             foreach (var classDeclaration in typeList)
@@ -131,13 +88,13 @@ namespace AnswerGenerator
 
                 // Przetwarzanie klasy
             
-                ProcessClass(context, classSymbol, tryAsyncDeclaration, launchAsyncDeclaration);
+                ProcessClass(context, classSymbol);
 
                 Debug.WriteLine($"Finished processing class {classSymbol.Name}.");
             }
         }
 
-        private void ProcessClass(SourceProductionContext context, INamedTypeSymbol classSymbol, string tryAsyncMethodSyntax, string launchMethodSyntax)
+        private void ProcessClass(SourceProductionContext context, INamedTypeSymbol classSymbol)
         {
             // Find all constructors
             var constructors = classSymbol.Constructors
@@ -320,45 +277,71 @@ namespace {namespaceName}
         }
 
 
+        private void PrepareHelperMethods()
+        {
+            var assembly = Assembly.GetExecutingAssembly();
+            var resourceName = "AnswerGenerator.LaunchableHelper.cs";
+            using var stream = assembly.GetManifestResourceStream(resourceName);
+            if (stream == null)
+            {
+                // Handle the error: resource not found
+                return;
+            }
+
+            using var reader = new StreamReader(stream);
+            var sourceCode = reader.ReadToEnd();
+
+            // Parse the source code
+            var syntaxTree = CSharpSyntaxTree.ParseText(sourceCode);
+            var root = syntaxTree.GetRoot();
+
+            // Find the class declaration for LaunchableHelper
+            var launchableHelperClass = root.DescendantNodes()
+                .OfType<ClassDeclarationSyntax>()
+                .FirstOrDefault(c => c.Identifier.Text == "LaunchableHelper");
+
+            if (launchableHelperClass == null)
+            {
+                // Handle the error: class not found
+                return;
+            }
+
+            // Collect all method declarations
+            var methodSyntaxes = launchableHelperClass.Members
+                .OfType<MethodDeclarationSyntax>();
 
 
+            foreach (var methodSyntax in methodSyntaxes)
+            {
+                var methodBody = methodSyntax.ToFullString();
+                // Modify the method body if needed
+             
+                _helperMethods.Add(methodBody);
+            }
 
-        private void GenerateHelperMethods(SourceProductionContext context, INamedTypeSymbol classSymbol, string tryAsyncBody, string launchBody, string answerServiceFieldName)
+        }
+
+        private void GenerateHelperMethods(SourceProductionContext context, INamedTypeSymbol classSymbol, string answerServiceFieldName)
         {
             var namespaceName = classSymbol.ContainingNamespace.IsGlobalNamespace
                 ? null
                 : classSymbol.ContainingNamespace.ToDisplayString();
             var className = classSymbol.Name;
 
-
-
-            // Konwersja ciał metod na stringi
-
-
-            // Zamiana nazwy pola IAnswerService
-            tryAsyncBody = ReplaceAnswerServiceName(tryAsyncBody, "_answerService", answerServiceFieldName);
-            launchBody = ReplaceAnswerServiceName(launchBody, "_answerService", answerServiceFieldName);
+            var methodsCode = string.Join("\n\n", _helperMethods).Replace("answerService", answerServiceFieldName); ;
 
             // Generowanie kodu metod
             var classBody = $$"""
-                              
-                                      
                                           public partial class {{className}}
                                           {
                               
-                                                  {{tryAsyncBody}}
-                              
-                              
-                              
-                                                  {{launchBody}}
+                                                  {{methodsCode}}
                               
                                           }
-                                      
                               """;
             var source = namespaceName is null
                 ? classBody
                 : $$"""
-
                     namespace {{namespaceName}}
                     {
                         {{classBody}}
@@ -367,15 +350,6 @@ namespace {namespaceName}
 
             context.AddSource($"{className}_HelperMethods.g.cs", SourceText.From(source, Encoding.UTF8));
         }
-
-        private string ReplaceAnswerServiceName(string methodBody, string originalName, string newName)
-        {
-            // Zamienia wszystkie wystąpienia oryginalnej nazwy IAnswerService na nową
-            // Można to ulepszyć, używając bardziej zaawansowanej analizy, aby uniknąć zamiany w nieodpowiednich miejscach
-            return methodBody.Replace(originalName, newName);
-        }
-
-
 
 
     }

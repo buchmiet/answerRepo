@@ -5,7 +5,7 @@ public class Answer
     private object _value;
     private static string _connector = " > ";
 
-    public bool AlreadyAnswered { get; set; }
+    public bool DialogConcluded { get; set; }
     public bool IsSuccess { get; private set; } = true;
     public bool IsTimedOut { get; private set; }
     public string Message => string.Join(_connector, Actions);
@@ -17,6 +17,8 @@ public class Answer
     {
         Actions.Add(action);
     }
+
+    public void ConcludeDialog() => DialogConcluded = true;
 
     public static Answer Prepare(string action) => new Answer(action);
 
@@ -55,12 +57,12 @@ public class Answer
         return this;
     }
 
-    public Answer TimedOut()
+    public static Answer TimedOut()
     {
-        IsTimedOut = true;
-        IsSuccess = false;
-        Actions.Add("Operation timed out.");
-        return this;
+        var answer = new Answer("Operation timed out.");
+        answer.IsTimedOut = true;
+        answer.IsSuccess = false;
+        return answer;
     }
 
     public Answer Error(string message)

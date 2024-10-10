@@ -62,6 +62,7 @@ public class PresentationLayer
 {
     IAnswerService _answerService;
     private UtilityLayerClass _utilityLayer;
+
     public PresentationLayer(Trier4.IAnswerService answerService, UtilityLayerClass utilityLayer)
     {
         _answerService = answerService;
@@ -71,7 +72,7 @@ public class PresentationLayer
 
     public async Task DisplayProductInformation(int id, CancellationToken ct)
     {
-        var response = await TryAsync(() => _utilityLayer.GetOrderAndProductsData(0,ct), ct);
+        var response = await TryAsync(() => _utilityLayer.GetOrderAndProductsData(0, ct), ct);
         if (response.IsSuccess)
         {
             Console.WriteLine(response.GetValue<string>());
@@ -84,20 +85,111 @@ public class PresentationLayer
 
     public void DisplayError(Answer answer)
     {
-        Console.ForegroundColor= ConsoleColor.Red;
+        Console.ForegroundColor = ConsoleColor.Red;
         Console.Write("Error:");
         Console.ResetColor();
         Console.WriteLine(answer.Message);
     }
 
-     
 
 
 
-    public async Task<Trier4.Answer> TryAsync(Func< Task<Trier4.Answer>> method, CancellationToken ct)
+
+    public async Task<Trier4.Answer> TryAsync(Func<Task<Trier4.Answer>> method, CancellationToken ct)
     {
         return await Launch(method, ct);
     }
+
+    private async Task<Answer> LaunchInternal(
+        Func<Task<Answer>> method,
+        CancellationToken ct,
+        TimeSpan? _timeout = null)
+    {
+
+  
+        var methodTask = method();
+       
+        //if (timeout.HasValue)
+        //{
+        //    var methodTask = method();
+        //    var delayTask = Task.Delay(timeout.Value, ct);
+
+        //    var completedTask = await Task.WhenAny(methodTask, delayTask);
+
+        //    if (completedTask == methodTask)
+        //    {
+        //        answer = await methodTask;
+        //    }
+        //    else
+        //    {
+        //        // Timeout occurred
+        //        return Answer.TimedOut();
+        //    }
+        //}
+        //else
+        //{
+        //    answer = await method();
+        //}
+
+        //if (answer.IsSuccess)
+        //{
+        //    return answer;
+        //}
+        if (_timeout is not TimeSpan timespan)
+        {
+            var answer = await methodTask;
+            while (answer is {IsSuccess: false, DialogConcluded: false} && _answerService.HasDialog)
+            {
+                bool retry = await _answerService.AskYesNoAsync(answer.Message, ct);
+                if (retry)
+                {
+                    answer = await method();
+                }
+                else
+                {
+                    answer.DialogConcluded = true;
+                    return answer;
+                }
+            }
+            return answer;
+        }
+
+        
+        try
+        {
+            var answer = await methodTask.WaitAsync(timespan, ct);
+            while (answer is { IsSuccess: false, DialogConcluded: false } && _answerService.HasDialog)
+            {
+                bool retry = await _answerService.AskYesNoAsync(answer.Message, ct);
+                if (retry)
+                {
+                    answer = await method();
+                }
+                else
+                {
+                    answer.DialogConcluded = true;
+                    return answer;
+                }
+            }
+            return answer;
+
+        }
+        catch (TimeoutException ex)
+        {
+
+        }
+
+        async Task<Answer> AnswerTask()
+        {
+            return await method();
+        }
+
+
+    }
+
+
+
+
 
     public async Task<Trier4.Answer> Launch(Func<Task<Trier4.Answer>> method, CancellationToken ct)
 {
@@ -114,7 +206,7 @@ public class PresentationLayer
 
         // If there is no timeout, just await the operation
         var answer= await operationTask;
-        if (!answer.IsSuccess && _answerService.HasDialog && answer.AlreadyAnswered)
+        if (!answer.IsSuccess && _answerService.HasDialog && answer.DialogConcluded)
         {
             var dialogResponse = _answerService.AskAsync(answer.Message, ct);
             if (await _answerService.AskAsync())
