@@ -9,8 +9,8 @@ namespace Trier4
 
     public interface IUserDialog
     {
-        Task<bool> YesNoAsync(string message, CancellationToken ct);
-        void Close();
+        Task<bool> YesNoAsync(string errorMessage, CancellationToken ct);
+     
     }
 
 }

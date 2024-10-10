@@ -44,13 +44,13 @@ namespace AnswerGenerator
 
 
         private readonly HashSet<string> _processedClasses = [];
-
+        private List<string> _helperMethods = new List<string>();
         public void Execute(SourceProductionContext context, Compilation compilation, ImmutableArray<ClassDeclarationSyntax> typeList)
         {
 #if DEBUG
             if (!Debugger.IsAttached)
             {
-        //    Debugger.Launch();
+        //  Debugger.Launch();
             }
 #endif 
 
@@ -83,24 +83,22 @@ namespace AnswerGenerator
                 return;
             }
 
-            // Find the method declarations
-            var tryAsyncMethodSyntax = launchableHelperClass.Members
+            var tryAsyncSyntax = launchableHelperClass.Members
                 .OfType<MethodDeclarationSyntax>()
                 .FirstOrDefault(m => m.Identifier.Text == "TryAsync");
+
+            var tryAsyncDeclaration = tryAsyncSyntax.ToFullString();
 
             var launchMethodSyntax = launchableHelperClass.Members
                 .OfType<MethodDeclarationSyntax>()
                 .FirstOrDefault(m => m.Identifier.Text == "Launch");
+            var launchAsyncDeclaration = launchMethodSyntax.ToFullString();
 
-            if (tryAsyncMethodSyntax == null || launchMethodSyntax == null)
+            if (tryAsyncDeclaration == null || launchAsyncDeclaration == null)
             {
                 // Handle the error: methods not found
                 return;
             }
-
-
-
-       
 
             //// Iteracja przez wszystkie kandydackie klasy
             foreach (var classDeclaration in typeList)
@@ -133,13 +131,13 @@ namespace AnswerGenerator
 
                 // Przetwarzanie klasy
             
-                ProcessClass(context, classSymbol, tryAsyncMethodSyntax, launchMethodSyntax);
+                ProcessClass(context, classSymbol, tryAsyncDeclaration, launchAsyncDeclaration);
 
                 Debug.WriteLine($"Finished processing class {classSymbol.Name}.");
             }
         }
 
-        private void ProcessClass(SourceProductionContext context, INamedTypeSymbol classSymbol, MethodDeclarationSyntax tryAsyncMethodSyntax, MethodDeclarationSyntax launchMethodSyntax)
+        private void ProcessClass(SourceProductionContext context, INamedTypeSymbol classSymbol, string tryAsyncMethodSyntax, string launchMethodSyntax)
         {
             // Find all constructors
             var constructors = classSymbol.Constructors
@@ -325,7 +323,7 @@ namespace {namespaceName}
 
 
 
-        private void GenerateHelperMethods(SourceProductionContext context, INamedTypeSymbol classSymbol, MethodDeclarationSyntax tryAsyncSyntax, MethodDeclarationSyntax launchSyntax, string answerServiceFieldName)
+        private void GenerateHelperMethods(SourceProductionContext context, INamedTypeSymbol classSymbol, string tryAsyncBody, string launchBody, string answerServiceFieldName)
         {
             var namespaceName = classSymbol.ContainingNamespace.IsGlobalNamespace
                 ? null
@@ -335,8 +333,7 @@ namespace {namespaceName}
 
 
             // Konwersja ciał metod na stringi
-            var tryAsyncBody = tryAsyncSyntax.Body.ToFullString();
-            var launchBody = launchSyntax.Body.ToFullString();
+
 
             // Zamiana nazwy pola IAnswerService
             tryAsyncBody = ReplaceAnswerServiceName(tryAsyncBody, "_answerService", answerServiceFieldName);
@@ -348,12 +345,10 @@ namespace {namespaceName}
                                       
                                           public partial class {{className}}
                                           {
-                                              public async Task<Trier4.Answer> TryAsync(Func<CancellationToken, Task<Trier4.Answer>> method, CancellationToken ct)
                               
                                                   {{tryAsyncBody}}
                               
                               
-                                              public async Task<Trier4.Answer> Launch(Func<CancellationToken, Task<Trier4.Answer>> method, CancellationToken ct)
                               
                                                   {{launchBody}}
                               

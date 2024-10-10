@@ -5,6 +5,7 @@ public class Answer
     private object _value;
     private static string _connector = " > ";
 
+    public bool AlreadyAnswered { get; set; }
     public bool IsSuccess { get; private set; } = true;
     public bool IsTimedOut { get; private set; }
     public string Message => string.Join(_connector, Actions);
